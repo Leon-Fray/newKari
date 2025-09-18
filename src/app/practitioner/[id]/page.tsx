@@ -1,20 +1,32 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { MainLayout } from '@/components/layout/main-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Star, Video, User, Calendar, Clock } from 'lucide-react'
 import { getPractitioner, getPractitionerReviews } from '@/lib/database'
 
 export default function PractitionerPage() {
   const params = useParams()
+  const router = useRouter()
   const practitionerId = params.id as string
   const [practitioner, setPractitioner] = useState<any>(null)
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Booking form state
+  const [bookingData, setBookingData] = useState({
+    date: '',
+    time: '',
+    consultationType: '',
+    notes: ''
+  })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -100,6 +112,29 @@ export default function PractitionerPage() {
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
     : 0
 
+  const handleBookingInputChange = (field: string, value: string) => {
+    setBookingData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleBookAppointment = () => {
+    // Validate required fields
+    if (!bookingData.date || !bookingData.time || !bookingData.consultationType) {
+      alert('Please fill in all required fields')
+      return
+    }
+    
+    // Navigate to confirmation page with booking data
+    const queryParams = new URLSearchParams({
+      practitionerId,
+      date: bookingData.date,
+      time: bookingData.time,
+      consultationType: bookingData.consultationType,
+      notes: bookingData.notes
+    })
+    
+    router.push(`/booking/confirmation?${queryParams.toString()}`)
+  }
+
   if (loading) {
     return (
       <MainLayout>
@@ -172,7 +207,14 @@ export default function PractitionerPage() {
                 </div>
 
                 <div className="flex space-x-4">
-                  <Button size="lg" className="flex-1">
+                  <Button 
+                    size="lg" 
+                    className="flex-1"
+                    onClick={() => {
+                      // Scroll to booking form
+                      document.getElementById('booking-form')?.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                  >
                     Book Appointment
                   </Button>
                   <Button variant="outline" size="lg">
@@ -219,44 +261,69 @@ export default function PractitionerPage() {
 
           {/* Booking Sidebar */}
           <div className="space-y-6">
-            <Card>
+            <Card id="booking-form">
               <CardHeader>
                 <CardTitle>Book Appointment</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Select Date</label>
-                    <input 
-                      type="date" 
-                      className="w-full mt-1 p-2 border rounded-md"
+                    <Label htmlFor="date">Select Date *</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={bookingData.date}
+                      onChange={(e) => handleBookingInputChange('date', e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
+                      required
                     />
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium">Select Time</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <Button variant="outline" size="sm">9:00 AM</Button>
-                      <Button variant="outline" size="sm">10:00 AM</Button>
-                      <Button variant="outline" size="sm">11:00 AM</Button>
-                      <Button variant="outline" size="sm">2:00 PM</Button>
-                    </div>
+                    <Label htmlFor="time">Select Time *</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={bookingData.time}
+                      onChange={(e) => handleBookingInputChange('time', e.target.value)}
+                      required
+                    />
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Consultation Type</label>
+                    <Label>Consultation Type *</Label>
                     <div className="space-y-2 mt-1">
                       {practitioner.consultation_types.map((type: string) => (
                         <div key={type} className="flex items-center space-x-2">
-                          <input type="radio" name="consultationType" value={type} />
+                          <input 
+                            type="radio" 
+                            name="consultationType" 
+                            value={type}
+                            checked={bookingData.consultationType === type}
+                            onChange={(e) => handleBookingInputChange('consultationType', e.target.value)}
+                          />
                           <span className="text-sm">{type}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <Button className="w-full" size="lg">
+                  <div>
+                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={bookingData.notes}
+                      onChange={(e) => handleBookingInputChange('notes', e.target.value)}
+                      placeholder="Any additional information you'd like to share..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    onClick={handleBookAppointment}
+                  >
                     Confirm Booking
                   </Button>
                 </div>

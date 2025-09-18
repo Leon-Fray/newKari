@@ -14,7 +14,7 @@ export function SignInForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,14 +24,24 @@ export function SignInForm() {
 
     try {
       await signIn(email, password)
-      router.push('/dashboard')
+      // Don't redirect immediately - let the auth state update handle it
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred during sign in'
       setError(errorMessage)
-    } finally {
       setLoading(false)
     }
   }
+
+  // Handle redirect after successful authentication
+  React.useEffect(() => {
+    if (user && profile && !authLoading && !loading) {
+      // Determine the correct dashboard path based on the user's role
+      const dashboardPath = profile.role === 'practitioner' 
+        ? '/practitioner/dashboard' 
+        : '/dashboard'
+      router.push(dashboardPath)
+    }
+  }, [user, profile, authLoading, loading, router])
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -71,8 +81,8 @@ export function SignInForm() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing In...' : 'Sign In'}
+          <Button type="submit" className="w-full" disabled={loading || authLoading}>
+            {loading || authLoading ? 'Signing In...' : 'Sign In'}
           </Button>
         </form>
 

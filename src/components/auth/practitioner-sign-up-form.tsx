@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { FileUpload } from '@/components/ui/file-upload'
 
 export function PractitionerSignUpForm() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -29,7 +30,11 @@ export function PractitionerSignUpForm() {
     specialty: '',
     credentials: '',
     consultationTypes: [] as string[],
-    bio: ''
+    bio: '',
+    
+    // Step 3: Document Uploads
+    profilePicture: null as File | null,
+    idImage: null as File | null
   })
 
   const specialties = [
@@ -58,6 +63,10 @@ export function PractitionerSignUpForm() {
     }))
   }
 
+  const handleFileSelect = (field: 'profilePicture' | 'idImage', file: File | null) => {
+    setFormData(prev => ({ ...prev, [field]: file }))
+  }
+
   const handleNext = () => {
     if (currentStep === 1) {
       if (!formData.fullName || !formData.email || !formData.password) {
@@ -68,14 +77,19 @@ export function PractitionerSignUpForm() {
         setError('Password must be at least 6 characters long')
         return
       }
+    } else if (currentStep === 2) {
+      if (!formData.specialty || formData.consultationTypes.length === 0) {
+        setError('Please fill in all required fields')
+        return
+      }
     }
     setError('')
-    setCurrentStep(2)
+    setCurrentStep(currentStep + 1)
   }
 
   const handleSubmit = async () => {
-    if (!formData.specialty || formData.consultationTypes.length === 0) {
-      setError('Please fill in all required fields')
+    if (!formData.profilePicture || !formData.idImage) {
+      setError('Please upload both profile picture and ID image')
       return
     }
 
@@ -83,16 +97,31 @@ export function PractitionerSignUpForm() {
     setLoading(true)
 
     try {
+      console.log('Starting signup process...')
+      
       // 1. Sign up user
+      console.log('Step 1: Creating user account...')
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
       })
 
-      if (authError) throw authError
+      if (authError) {
+        console.error('Auth error:', authError)
+        throw authError
+      }
+
+      console.log('User created successfully:', authData.user?.id)
 
       if (authData.user) {
-        // 2. Create profile with role: 'practitioner'
+        // 2. Store files locally and create references
+        console.log('Step 2: Storing files locally...')
+        const profilePictureRef = await storeFileLocally(formData.profilePicture!, authData.user.id, 'profile')
+        const idImageRef = await storeFileLocally(formData.idImage!, authData.user.id, 'id')
+        console.log('Files stored with keys:', { profilePictureRef, idImageRef })
+
+        // 3. Create profile with role: 'practitioner'
+        console.log('Step 3: Creating profile...')
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
@@ -101,24 +130,41 @@ export function PractitionerSignUpForm() {
             role: 'practitioner'
           })
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error('Profile error:', profileError)
+          throw profileError
+        }
+        console.log('Profile created successfully')
 
-        // 3. Create practitioner record
+        // 4. Create practitioner record (without URL columns for now)
+        console.log('Step 4: Creating practitioner record...')
+        const practitionerData = {
+          profile_id: authData.user.id,
+          specialty: formData.specialty,
+          credentials: formData.credentials || null,
+          consultation_types: formData.consultationTypes,
+          bio: formData.bio || null
+          // Note: profile_picture_url and id_image_url columns don't exist yet
+          // Files are stored locally with keys: profilePictureRef, idImageRef
+        }
+        console.log('Practitioner data to insert:', practitionerData)
+        console.log('Files stored locally with keys:', { profilePictureRef, idImageRef })
+
         const { error: practitionerError } = await supabase
           .from('practitioners')
-          .insert({
-            profile_id: authData.user.id,
-            specialty: formData.specialty,
-            credentials: formData.credentials || null,
-            consultation_types: formData.consultationTypes,
-            bio: formData.bio || null
-          })
+          .insert(practitionerData)
 
-        if (practitionerError) throw practitionerError
+        if (practitionerError) {
+          console.error('Practitioner error:', practitionerError)
+          throw practitionerError
+        }
+        console.log('Practitioner record created successfully')
 
+        console.log('Signup completed successfully!')
         router.push("/practitioner/dashboard")
       }
     } catch (err: unknown) {
+      console.error('Signup error details:', err)
       const errorMessage = err instanceof Error ? err.message : "An error occurred during sign up"
       setError(errorMessage)
     } finally {
@@ -126,12 +172,53 @@ export function PractitionerSignUpForm() {
     }
   }
 
+  // Helper function to store file locally and return a reference
+  const storeFileLocally = async (file: File, userId: string, type: 'profile' | 'id'): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log(`Storing ${type} file:`, { fileName: file.name, fileSize: file.size })
+        
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = () => {
+          try {
+            const base64Data = reader.result as string
+            const fileKey = `practitioner_${userId}_${type}_${Date.now()}`
+            
+            console.log(`Storing file with key: ${fileKey}`)
+            
+            // Store in localStorage with a unique key
+            localStorage.setItem(fileKey, base64Data)
+            
+            console.log(`File stored successfully with key: ${fileKey}`)
+            // Return the key as reference (much smaller than base64)
+            resolve(fileKey)
+          } catch (error) {
+            console.error('Error processing file data:', error)
+            reject(error)
+          }
+        }
+        reader.onerror = error => {
+          console.error('FileReader error:', error)
+          reject(error)
+        }
+      } catch (error) {
+        console.error('Error in storeFileLocally:', error)
+        reject(error)
+      }
+    })
+  }
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>Join Kari as a Healthcare Professional</CardTitle>
         <CardDescription>
-          Step {currentStep} of 2: {currentStep === 1 ? 'Account Information' : 'Professional Details'}
+          Step {currentStep} of 3: {
+            currentStep === 1 ? 'Account Information' : 
+            currentStep === 2 ? 'Professional Details' : 
+            'Document Upload'
+          }
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -252,6 +339,43 @@ export function PractitionerSignUpForm() {
 
             <div className="flex space-x-2">
               <Button variant="outline" onClick={() => setCurrentStep(1)} className="flex-1">
+                Back
+              </Button>
+              <Button onClick={handleNext} className="flex-1">
+                Next Step
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-2">Upload Required Documents</h3>
+              <p className="text-sm text-gray-600">
+                Please upload your profile picture and a clear image of your professional ID for verification.
+              </p>
+              <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded">
+                ⚠️ Note: Images are stored locally in your browser. Database URL columns will be added later.
+              </p>
+            </div>
+
+            <FileUpload
+              label="Profile Picture"
+              onFileSelect={(file) => handleFileSelect('profilePicture', file)}
+              required
+              maxSize={5}
+            />
+
+            <FileUpload
+              label="Professional ID Image"
+              onFileSelect={(file) => handleFileSelect('idImage', file)}
+              required
+              maxSize={5}
+            />
+
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => setCurrentStep(2)} className="flex-1">
                 Back
               </Button>
               <Button onClick={handleSubmit} disabled={loading} className="flex-1">

@@ -22,6 +22,14 @@ const config: Config = {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
         },
+        "secondary-patient": {
+          DEFAULT: "hsl(var(--secondary-patient))",
+          foreground: "hsl(var(--secondary-patient-foreground))",
+        },
+        "secondary-doctor": {
+          DEFAULT: "hsl(var(--secondary-doctor))",
+          foreground: "hsl(var(--secondary-doctor-foreground))",
+        },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",

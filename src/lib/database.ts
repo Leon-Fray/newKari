@@ -7,6 +7,8 @@ export interface Practitioner {
   credentials?: string
   consultation_types: string[]
   bio?: string
+  profile_picture_url?: string
+  id_image_url?: string
   profiles: {
     full_name: string
   }
@@ -20,6 +22,7 @@ export interface Appointment {
   end_time: string
   type: string
   status: string
+  notes?: string
   practitioners: {
     specialty: string
     profiles: {
@@ -93,6 +96,8 @@ export const getPractitioners = async (filters?: SearchFilters): Promise<Practit
     credentials: item.credentials,
     consultation_types: item.consultation_types,
     bio: item.bio,
+    profile_picture_url: undefined,
+    id_image_url: undefined,
     profiles: {
       full_name: (item.profiles as any).full_name
     }
@@ -129,6 +134,8 @@ export const getPractitioner = async (id: string): Promise<Practitioner | null> 
     credentials: data.credentials,
     consultation_types: data.consultation_types,
     bio: data.bio,
+    profile_picture_url: undefined,
+    id_image_url: undefined,
     profiles: {
       full_name: (data.profiles as any).full_name
     }
@@ -141,139 +148,96 @@ export const createAppointment = async (appointmentData: {
   start_time: string
   end_time: string
   type: string
+  notes?: string
 }): Promise<Appointment | null> => {
-  const { data, error } = await supabase
-    .from('appointments')
-    .insert({
-      ...appointmentData,
-      status: 'pending'
-    })
-    .select(`
-      id,
-      patient_id,
-      practitioner_id,
-      start_time,
-      end_time,
-      type,
-      status,
-      practitioners (
-        specialty,
-        profiles (
-          full_name
-        )
-      )
-    `)
-    .single()
-
-  if (error) {
-    console.error('Error creating appointment:', error)
-    return null
-  }
-
-  // Transform the data to match our interface
-  return {
-    id: data.id,
-    patient_id: data.patient_id,
-    practitioner_id: data.practitioner_id,
-    start_time: data.start_time,
-    end_time: data.end_time,
-    type: data.type,
-    status: data.status,
+  // Mock appointment creation for frontend testing
+  const mockAppointment: Appointment = {
+    id: `mock-${Date.now()}`,
+    patient_id: appointmentData.patient_id,
+    practitioner_id: appointmentData.practitioner_id,
+    start_time: appointmentData.start_time,
+    end_time: appointmentData.end_time,
+    type: appointmentData.type,
+    status: 'pending',
+    notes: appointmentData.notes || undefined,
     practitioners: {
-      specialty: (data.practitioners as any).specialty,
+      specialty: 'Cardiology', // Mock specialty
       profiles: {
-        full_name: (data.practitioners as any).profiles.full_name
+        full_name: 'Dr. Sarah Johnson' // Mock practitioner name
       }
     }
+  }
+
+  // Store notes locally if provided
+  if (appointmentData.notes) {
+    const appointmentNotes = {
+      appointmentId: mockAppointment.id,
+      notes: appointmentData.notes,
+      createdAt: new Date().toISOString()
+    }
+    
+    // Get existing notes from localStorage
+    const existingNotes = JSON.parse(localStorage.getItem('appointmentNotes') || '[]')
+    existingNotes.push(appointmentNotes)
+    localStorage.setItem('appointmentNotes', JSON.stringify(existingNotes))
+  }
+
+  // Store appointment locally for testing
+  const existingAppointments = JSON.parse(localStorage.getItem('mockAppointments') || '[]')
+  existingAppointments.push(mockAppointment)
+  localStorage.setItem('mockAppointments', JSON.stringify(existingAppointments))
+
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 1000))
+
+  console.log('Mock appointment created:', mockAppointment)
+  return mockAppointment
+}
+
+// Helper function to get notes from localStorage
+const getAppointmentNotes = (appointmentId: string): string | undefined => {
+  try {
+    const notes = JSON.parse(localStorage.getItem('appointmentNotes') || '[]')
+    const appointmentNote = notes.find((note: any) => note.appointmentId === appointmentId)
+    return appointmentNote?.notes
+  } catch (error) {
+    console.error('Error getting appointment notes:', error)
+    return undefined
   }
 }
 
 export const getPatientAppointments = async (patientId: string): Promise<Appointment[]> => {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select(`
-      id,
-      patient_id,
-      practitioner_id,
-      start_time,
-      end_time,
-      type,
-      status,
-      practitioners (
-        specialty,
-        profiles (
-          full_name
-        )
-      )
-    `)
-    .eq('patient_id', patientId)
-    .order('start_time', { ascending: true })
-
-  if (error) {
-    console.error('Error fetching patient appointments:', error)
+  // For frontend testing, return mock appointments from localStorage
+  try {
+    const mockAppointments = JSON.parse(localStorage.getItem('mockAppointments') || '[]')
+    const patientAppointments = mockAppointments.filter((apt: any) => apt.patient_id === patientId)
+    
+    // Add notes to each appointment
+    return patientAppointments.map((appointment: any) => ({
+      ...appointment,
+      notes: getAppointmentNotes(appointment.id)
+    }))
+  } catch (error) {
+    console.error('Error fetching mock appointments:', error)
     return []
   }
-
-  // Transform the data to match our interface
-  return (data || []).map((item: any) => ({
-    id: item.id,
-    patient_id: item.patient_id,
-    practitioner_id: item.practitioner_id,
-    start_time: item.start_time,
-    end_time: item.end_time,
-    type: item.type,
-    status: item.status,
-    practitioners: {
-      specialty: item.practitioners.specialty,
-      profiles: {
-        full_name: item.practitioners.profiles.full_name
-      }
-    }
-  }))
 }
 
 export const getPractitionerAppointments = async (practitionerId: string): Promise<Appointment[]> => {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select(`
-      id,
-      patient_id,
-      practitioner_id,
-      start_time,
-      end_time,
-      type,
-      status,
-      practitioners (
-        specialty,
-        profiles (
-          full_name
-        )
-      )
-    `)
-    .eq('practitioner_id', practitionerId)
-    .order('start_time', { ascending: true })
-
-  if (error) {
-    console.error('Error fetching practitioner appointments:', error)
+  // For frontend testing, return mock appointments from localStorage
+  try {
+    const mockAppointments = JSON.parse(localStorage.getItem('mockAppointments') || '[]')
+    const practitionerAppointments = mockAppointments.filter((apt: any) => apt.practitioner_id === practitionerId)
+    
+    // Add notes to each appointment
+    return practitionerAppointments.map((appointment: any) => ({
+      ...appointment,
+      notes: getAppointmentNotes(appointment.id)
+    }))
+  } catch (error) {
+    console.error('Error fetching mock practitioner appointments:', error)
     return []
   }
-
-  // Transform the data to match our interface
-  return (data || []).map((item: any) => ({
-    id: item.id,
-    patient_id: item.patient_id,
-    practitioner_id: item.practitioner_id,
-    start_time: item.start_time,
-    end_time: item.end_time,
-    type: item.type,
-    status: item.status,
-    practitioners: {
-      specialty: item.practitioners.specialty,
-      profiles: {
-        full_name: item.practitioners.profiles.full_name
-      }
-    }
-  }))
 }
 
 export const updateAppointmentStatus = async (id: string, status: string): Promise<boolean> => {

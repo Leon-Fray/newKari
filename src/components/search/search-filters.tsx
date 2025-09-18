@@ -26,7 +26,8 @@ const specialties = [
   'Oncology',
   'Pediatrics',
   'Psychiatry',
-  'Radiology'
+  'Radiology',
+  'Alternative'
 ]
 
 export function SearchFilters({ filters, onFiltersChange }: SearchFiltersProps) {

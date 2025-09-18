@@ -7,7 +7,7 @@ import { PatientDashboard } from '@/components/dashboard/patient-dashboard'
 import { PractitionerDashboard } from '@/components/dashboard/practitioner-dashboard'
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
   if (loading) {
     return (
@@ -39,9 +39,8 @@ export default function DashboardPage() {
     )
   }
 
-  // For now, we'll show patient dashboard by default
-  // In a real app, you'd check the user's role from their profile
-  const isPractitioner = false // This would come from user profile
+  // Check the user's role from their profile
+  const isPractitioner = profile?.role === 'practitioner'
 
   return (
     <MainLayout>

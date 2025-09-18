@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
 import { MainLayout } from '@/components/layout/main-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,22 +11,42 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createAppointment } from '@/lib/database'
+import { CheckCircle } from 'lucide-react'
 
 export default function BookingConfirmationPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
   const [formData, setFormData] = useState({
-    practitionerId: '', // This would come from URL params in a real app
+    practitionerId: '',
     date: '',
     time: '',
     consultationType: '',
     reason: '',
     notes: ''
   })
+
+  useEffect(() => {
+    // Initialize form data from URL params
+    const practitionerId = searchParams.get('practitionerId') || ''
+    const date = searchParams.get('date') || ''
+    const time = searchParams.get('time') || ''
+    const consultationType = searchParams.get('consultationType') || ''
+    const notes = searchParams.get('notes') || ''
+
+    setFormData({
+      practitionerId,
+      date,
+      time,
+      consultationType,
+      reason: '',
+      notes
+    })
+  }, [searchParams])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -51,7 +71,8 @@ export default function BookingConfirmationPage() {
         practitioner_id: formData.practitionerId,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        type: formData.consultationType
+        type: formData.consultationType,
+        notes: formData.notes || undefined
       }
 
       const appointment = await createAppointment(appointmentData)
@@ -60,7 +81,7 @@ export default function BookingConfirmationPage() {
         setSuccess(true)
         setTimeout(() => {
           router.push('/dashboard')
-        }, 2000)
+        }, 3000)
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred while booking'
@@ -75,18 +96,27 @@ export default function BookingConfirmationPage() {
       <MainLayout>
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-md mx-auto text-center">
-            <Card>
+            <Card className="border-green-200 bg-green-50">
               <CardContent className="p-8">
-                <div className="text-green-600 mb-4">
-                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                <div className="text-green-600 mb-6">
+                  <CheckCircle className="w-20 h-20 mx-auto" />
                 </div>
-                <h1 className="text-2xl font-bold text-foreground mb-2">Appointment Booked!</h1>
-                <p className="text-muted-foreground mb-4">
-                  Your appointment has been successfully booked. You&apos;ll receive a confirmation email shortly.
+                <h1 className="text-3xl font-bold text-green-800 mb-4">Appointment Booked Successfully!</h1>
+                <p className="text-green-700 mb-6 text-lg">
+                  Your appointment has been confirmed. You&apos;ll receive a confirmation email shortly.
                 </p>
-                <Button onClick={() => router.push('/dashboard')}>
+                <div className="bg-green-100 border border-green-300 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-green-800">
+                    <strong>Appointment Details:</strong><br />
+                    Date: {new Date(formData.date).toLocaleDateString()}<br />
+                    Time: {formData.time}<br />
+                    Type: {formData.consultationType}
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => router.push('/dashboard')}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
                   Go to Dashboard
                 </Button>
               </CardContent>
